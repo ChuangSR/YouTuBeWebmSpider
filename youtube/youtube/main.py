@@ -8,13 +8,34 @@ from youtube.dao.SqliteDao import SqliteDao
 from pytube import YouTube
 
 from youtube.utils.util import Util
+import os
+import platform
+import ctypes
 
 
-def download(root_path, database_name, save_path, max_workers):
+def get_free_space_status(folder,reserved_size):
+    """
+    获取磁盘剩余空间
+    :param folder: 磁盘路径 例如 D:\\
+    :return: 剩余空间 单位 G
+    """
+    if platform.system() == 'Windows':
+        free_bytes = ctypes.c_ulonglong(0)
+        ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(folder), None, None, ctypes.pointer(free_bytes))
+        return free_bytes.value / 1024 / 1024 // 1024 > reserved_size
+    else:
+        st = os.statvfs(folder)
+        return st.f_bavail * st.f_frsize / 1024 // 1024 > reserved_size
+
+
+def download(root_path, database_name, save_path, max_workers,reserved_size):
+    if not get_free_space_status(root_path,reserved_size):
+        print("空间不足")
+        return
     path = f"{root_path}/{database_name}"
     dao = SqliteDao(path=path)
     results = dao.select_all()
-    download_thread = Thread(target=start_download_thread, args=(path, save_path, max_workers,results,))
+    download_thread = Thread(target=start_download_thread, args=(path, save_path, max_workers,results,reserved_size,))
     download_thread.start()
     download_thread.join()
 
@@ -24,12 +45,15 @@ def download(root_path, database_name, save_path, max_workers):
     dao.close()
 
 
-def start_download_thread(path, output_path, max_workers,results):
+def start_download_thread(path, output_path, max_workers,results,reserved_size):
     threadPool = ThreadPoolExecutor(max_workers=max_workers)
     for result in results:
-        threadPool.submit(download_thread, result, output_path)
+        threadPool.submit(download_thread, result, output_path,reserved_size)
     threadPool.shutdown(wait=True)
-def download_thread(result: tuple, output_path):
+def download_thread(result: tuple, output_path,reserved_size):
+    if not get_free_space_status(output_path,reserved_size):
+        print("空间不足")
+        return
     videoId = result[1]
     name = result[3]
     print(f"{name}开始下载！")
@@ -57,7 +81,7 @@ def get_user():
     return None
 
 
-def run(save_path, max_workers):
+def run(save_path, max_workers,reserved_size):
     root_path = "./resource"
     if not os.path.exists(root_path):
         os.makedirs(root_path)
@@ -67,7 +91,7 @@ def run(save_path, max_workers):
             print(i)
             download(root_path, i,
                      Util.get_path(save_path, Util.replace_name(i.split("@")[-1])),
-                     max_workers)
+                     max_workers,reserved_size)
 
     # 获取id
     user = get_user()
@@ -75,7 +99,7 @@ def run(save_path, max_workers):
         database_name = run_spider(user)
         download(root_path, database_name,
                  Util.get_path(save_path, Util.replace_name(database_name.split("@")[-1])),
-                 max_workers)
+                 max_workers,reserved_size)
         user = get_user()
 
 if __name__ == "__main__":
@@ -83,4 +107,6 @@ if __name__ == "__main__":
     save_path = "./webm"
     # 下载的线程数目
     max_workers = 16
-    run(save_path, max_workers)
+    #保留的空间，单位G
+    reserved_size = 0
+    run(save_path, max_workers,reserved_size)
