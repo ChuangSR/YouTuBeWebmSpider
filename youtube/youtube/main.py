@@ -1,4 +1,3 @@
-import os
 from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
 from scrapy.crawler import CrawlerProcess
@@ -35,7 +34,7 @@ def download(root_path, database_name, save_path, max_workers,reserved_size):
     path = f"{root_path}/{database_name}"
     dao = SqliteDao(path=path)
     results = dao.select_all()
-    download_thread = Thread(target=start_download_thread, args=(path, save_path, max_workers,results,reserved_size,))
+    download_thread = Thread(target=start_download_thread, args=(save_path, max_workers,results,reserved_size,))
     download_thread.start()
     download_thread.join()
 
@@ -45,9 +44,12 @@ def download(root_path, database_name, save_path, max_workers,reserved_size):
     dao.close()
 
 
-def start_download_thread(path, output_path, max_workers,results,reserved_size):
+def start_download_thread(output_path, max_workers,results,reserved_size):
     threadPool = ThreadPoolExecutor(max_workers=max_workers)
     for result in results:
+        if not get_free_space_status(output_path, reserved_size):
+            print("空间不足")
+            break
         threadPool.submit(download_thread, result, output_path,reserved_size)
     threadPool.shutdown(wait=True)
 def download_thread(result: tuple, output_path,reserved_size):
