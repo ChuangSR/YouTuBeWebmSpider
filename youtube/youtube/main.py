@@ -59,6 +59,8 @@ def get_user():
 
 def run(save_path, max_workers):
     root_path = "./resource"
+    if not os.path.exists(root_path):
+        os.makedirs(root_path)
     dirs = os.listdir(root_path)
     for i in dirs:
         print(i)
