@@ -61,12 +61,13 @@ def run(save_path, max_workers):
     root_path = "./resource"
     if not os.path.exists(root_path):
         os.makedirs(root_path)
-    dirs = os.listdir(root_path)
-    for i in dirs:
-        print(i)
-        download(root_path, i,
-                 Util.get_path(save_path, Util.replace_name(i.split("@")[-1])),
-                 max_workers)
+    else:
+        dirs = os.listdir(root_path)
+        for i in dirs:
+            print(i)
+            download(root_path, i,
+                     Util.get_path(save_path, Util.replace_name(i.split("@")[-1])),
+                     max_workers)
 
     # 获取id
     user = get_user()
