@@ -32,6 +32,18 @@ class SqliteDao:
 
     def insert(self, item: YoutubeItem):
         sql = f"""
+            select 
+                title
+            from 
+                {self.table_name}
+            where
+                videoId = "{item["videoId"]}"
+        """
+        self.cursor.execute(sql)
+        if self.cursor.fetchall():
+            return
+
+        sql = f"""
             insert into 
                 {self.table_name}(videoId,title,title_hash,lengthText)
             values (
