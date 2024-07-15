@@ -8,37 +8,68 @@ from pytube import YouTube
 
 from youtube.utils.util import Util
 import os
+import yt_dlp
+
 def download(root_path, database_name, save_path, max_workers):
     path = f"{root_path}/{database_name}"
     dao = SqliteDao(path=path)
     results = dao.select_all()
-    download_thread = Thread(target=start_download_thread, args=(save_path, max_workers,results,))
+    download_thread = Thread(target=start_download_thread, args=(save_path, max_workers, results,))
     download_thread.start()
     download_thread.join()
 
     for result in results:
-        if os.path.exists(Util.get_path(save_path,f"{result[3]}.webm")):
+        if os.path.exists(Util.get_path(save_path, f"{result[3]}.webm")):
             dao.update(result[0])
     dao.close()
 
 
-def start_download_thread(output_path, max_workers,results):
+def start_download_thread(output_path, max_workers, results):
     threadPool = ThreadPoolExecutor(max_workers=max_workers)
     for result in results:
         threadPool.submit(download_thread, result, output_path)
     threadPool.shutdown(wait=True)
+
+
 def download_thread(result: tuple, output_path):
     videoId = result[1]
     name = result[3]
     print(f"{name}开始下载！")
-    try:
-        yt = YouTube(f"https://youtube.com/watch?v={videoId}")
-        (yt.streams.filter(only_audio=True, mime_type="audio/webm").
-         order_by("abr").desc().first().download(output_path=output_path, filename=f"{name}.webm"))
-        print(f"{name}下载完成！")
-    except Exception as e:
-        print(f"{name}下载失败！")
-        print(e)
+    yt_dlp_download(videoId,output_path)
+def pytube_download(name,videoId,output_path):
+    yt = YouTube(f"https://youtube.com/watch?v={videoId}")
+    (yt.streams.filter(only_audio=True, mime_type="audio/webm").
+     order_by("abr").desc().first().download(output_path=output_path, filename=f"{name}.webm"))
+
+def yt_dlp_download(videoId,output_path):
+    def format_selector(ctx):
+        formats = ctx.get('formats')
+        webm = {}
+        for f in formats:
+            ext_type = f.get("audio_ext")
+            abr = f.get("format_id")
+            size = f.get("filesize")
+            if ext_type == "webm" and "drc" not in abr:
+                if webm.get("size", 0) < size:
+                    webm = f
+        yield {
+            'format_id': f"{webm['format_id']}",
+            'ext': webm['ext'],
+            'requested_formats': [webm],
+            # Must be + separated list of protocols
+            'protocol': f"{webm['protocol']}"
+        }
+
+    ydl_opts = {
+        'format': format_selector,
+        "paths": {
+            "home": output_path
+        }
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download(f"https://youtube.com/watch?v={videoId}")
+
 def run_spider(name):
     setting = get_project_settings()
     setting.name = name
@@ -76,9 +107,18 @@ def run(save_path, max_workers):
                  max_workers)
         user = None
 
+
 if __name__ == "__main__":
     # 保存文件的路径
     save_path = "./webm"
     # 下载的线程数目
     max_workers = 16
     run(save_path, max_workers)
+    # result = [0, 0, 0, 0]
+    # result[1] = ""
+    # result[3] = "temp"
+    # # download_thread(tuple(result),save_path)
+    #
+    # yt = YouTube(f"https://youtube.com/watch?v=Uq9pm2klKUc")
+    # (yt.streams.filter(only_audio=True, mime_type="audio/webm").
+    #  order_by("abr").desc().first().download(output_path="./webm", filename="temp.webm"))
