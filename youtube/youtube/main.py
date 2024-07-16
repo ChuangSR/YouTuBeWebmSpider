@@ -41,7 +41,7 @@ def pytube_download(name,videoId,output_path):
     (yt.streams.filter(only_audio=True, mime_type="audio/webm").
      order_by("abr").desc().first().download(output_path=output_path, filename=f"{name}.webm"))
 
-def yt_dlp_download(videoId,output_path):
+def yt_dlp_download(videoId,name,output_path):
     def format_selector(ctx):
         formats = ctx.get('formats')
         webm = {}
@@ -64,6 +64,9 @@ def yt_dlp_download(videoId,output_path):
         'format': format_selector,
         "paths": {
             "home": output_path
+        },
+        "outtmpl": {
+            "default": name
         }
     }
 
